@@ -1,44 +1,48 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"net"
+	"os"
+	"sync"
 )
 
 func main() {
-	// 创建UDP连接
-	udpAddr, err := net.ResolveUDPAddr("udp", "255.255.255.255:8888") // 广播地址
+	var wg sync.WaitGroup
+	connW, err := net.Dial("udp", "255.255.255.255:8085")
 	if err != nil {
-		fmt.Println("Error resolving UDP address:", err.Error())
-		return
+		fmt.Println("链接错误:", err.Error())
+		os.Exit(1)
 	}
-
-	conn, err := net.DialUDP("udp", nil, udpAddr)
-	if err != nil {
-		fmt.Println("Error connecting to UDP address:", err.Error())
-		return
+	connR, err2 := net.ListenPacket("udp", ":8086")
+	if err2 != nil {
+		fmt.Println("链接错误:", err2.Error())
+		os.Exit(1)
 	}
-	defer conn.Close()
-
-	// 接收回复
-	buf := make([]byte, 1024)
-	//conn.SetReadDeadline(time.Now().Add(2 * time.Second)) // 设置读取超时时间
-	n, _, err := conn.ReadFromUDP(buf)
-	if err != nil {
-		fmt.Println("Error receiving response:", err.Error())
-		return
+	defer connW.Close()
+	defer connR.Close()
+	wg.Add(2)
+	go handleRequest(connR, wg)
+	go handleSend(connW, wg)
+	wg.Wait()
+}
+func handleRequest(conn net.PacketConn, wg sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		buffer := make([]byte, 1024)
+		conn.ReadFrom(buffer)
+		buffer = bytes.TrimRight(buffer, "\x00")
+		fmt.Println("受到消息:", string(buffer))
 	}
+}
 
-	fmt.Println("Response received:", string(buf[:n]))
-
-	// 发送广播消息
-	message := []byte("Requesting IP Address")
-	_, err = conn.Write(message)
-	if err != nil {
-		fmt.Println("Error sending broadcast message:", err.Error())
-		return
+func handleSend(conn net.Conn, wg sync.WaitGroup) {
+	defer wg.Done()
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		input, _ := reader.ReadString('\n')
+		fmt.Fprintf(conn, input+"\n")
 	}
-
-	fmt.Println("Broadcast message sent.")
-
 }
