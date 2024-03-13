@@ -1,12 +1,8 @@
 package service
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"os"
@@ -264,6 +260,7 @@ func (r *ReceiveHandler) RunReceiveFile() {
 	go func() {
 		defer listener.Close()
 		for {
+			Log("Start receiving files...")
 			conn, err := listener.Accept()
 			if err != nil {
 				logCloseOrErr(err, "runReceiveFile Accept stop:")
@@ -271,43 +268,15 @@ func (r *ReceiveHandler) RunReceiveFile() {
 			}
 			go func(conn net.Conn) {
 				defer conn.Close()
-				//读取文件名
-				fileName := make([]byte, 1024)
-				_, err = conn.Read(fileName)
-				if err != nil {
-					logCloseOrErr(err, "Error reading file name:")
-					return
+				//设置超时时间
+				err2 := conn.SetReadDeadline(time.Now().Add(time.Second))
+				if err2 != nil {
+					logCloseOrErr(err2, "set time deadline error:")
 				}
-				fileName = bytes.TrimRight(fileName, "\x00")
-				Log("Received file name:" + string(fileName))
-				//读取文件大小
-				fileSize := make([]byte, 8)
-				_, err = conn.Read(fileSize)
-				if err != nil {
-					logCloseOrErr(err, "Error reading file size:")
-					return
-				}
-				num := int64(binary.BigEndian.Uint64(fileSize))
-				Log("Received file size:" + strconv.FormatInt(num, 10))
-				//创建文件
-				fPath := r.fileSrc + string(filepath.Separator) + string(fileName)
-				newFile, err := os.Create(fPath)
-				if err != nil {
-					LogErr("Error creating file:" + err.Error())
-					return
-				}
-				defer newFile.Close()
 
-				reader := bufio.NewReader(conn)
-				_, err = io.Copy(newFile, reader)
-				if err != nil {
-					logCloseOrErr(err, "Error while receiving file:")
-					//出错删除文件
-					err := os.Remove(r.fileSrc + string(fileName))
-					if err != nil {
-						LogErr("Error occurred while removing incomplete files:" + err.Error())
-					}
-					return
+				err2 = ReceiveFile(r.fileSrc, conn)
+				if err2 != nil {
+					logCloseOrErr(err2, "receive file err:")
 				}
 			}(conn)
 		}

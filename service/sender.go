@@ -1,12 +1,9 @@
 package service
 
 import (
-	"encoding/binary"
 	"errors"
-	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 )
 
@@ -116,7 +113,9 @@ func (r *SendHandler) RunIpReceiver() {
 				LogErr("ExtractIPPartOfAddress Error:" + err.Error())
 				return
 			}
-			AddSList(ip)
+			if AddSList(ip) {
+				Log("Get ip:" + ip)
+			}
 		}
 	}()
 }
@@ -141,37 +140,9 @@ func (r *SendHandler) SendFile() {
 		return
 	}
 	defer conn.Close()
-	//打开文件
-	file, err := os.Open(r.fileSrc)
+	err = SendFile(r.fileSrc, conn)
 	if err != nil {
-		LogErr("Fail to open file:" + err.Error())
+		LogErr(err.Error())
 		return
 	}
-	defer file.Close()
-	//发送文件名
-	_, err = conn.Write([]byte(filepath.Base(file.Name())))
-	if err != nil {
-		LogErr("Wrong file name sent:" + err.Error())
-		return
-	}
-	//发送文件大小
-	stat, err := file.Stat()
-	if err != nil {
-		LogErr("Failed to obtain file information:" + err.Error())
-		return
-	}
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(stat.Size()))
-	_, err = conn.Write(buf)
-	if err != nil {
-		LogErr("Wrong file name sent:" + err.Error())
-		return
-	}
-	//发送文件内容
-	_, err = io.Copy(conn, file)
-	if err != nil {
-		LogErr("Error sending file:" + err.Error())
-		return
-	}
-	Log("Send file completed")
 }

@@ -199,10 +199,10 @@ func RefreshRList(list []string) {
 	RList.Refresh()
 
 }
-func AddSList(ip string) {
+func AddSList(ip string) bool {
 	for _, item := range SListItems {
 		if item == ip {
-			return
+			return false
 		}
 	}
 	SListItems = append(SListItems, ip)
@@ -214,6 +214,7 @@ func AddSList(ip string) {
 	if SIpInput.Text == "" {
 		SIpInput.SetText(SListItems[0])
 	}
+	return true
 }
 func Log(msg string) {
 	formatMsg := fmt.Sprintf("[%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), msg)
