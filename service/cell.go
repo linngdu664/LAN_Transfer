@@ -181,7 +181,6 @@ func InitWidget() {
 				return
 			}
 		}
-
 	}
 	LogScroll = container.NewScroll(Logger)
 	box := container.NewGridWithRows(2,

@@ -260,24 +260,25 @@ func (r *ReceiveHandler) RunReceiveFile() {
 	go func() {
 		defer listener.Close()
 		for {
-			Log("Start receiving files...")
 			conn, err := listener.Accept()
 			if err != nil {
 				logCloseOrErr(err, "runReceiveFile Accept stop:")
 				return
 			}
+			Log("Start receiving files from:" + conn.RemoteAddr().String())
 			go func(conn net.Conn) {
 				defer conn.Close()
 				//设置超时时间
-				err2 := conn.SetReadDeadline(time.Now().Add(time.Second))
-				if err2 != nil {
-					logCloseOrErr(err2, "set time deadline error:")
-				}
+				//err2 := conn.SetReadDeadline(time.Now().Add(time.Second))
+				//if err2 != nil {
+				//	logCloseOrErr(err2, "set time deadline error:")
+				//}
 
-				err2 = ReceiveFile(r.fileSrc, conn)
+				err2 := ReceiveFile(r.fileSrc, conn)
 				if err2 != nil {
 					logCloseOrErr(err2, "receive file err:")
 				}
+
 			}(conn)
 		}
 	}()

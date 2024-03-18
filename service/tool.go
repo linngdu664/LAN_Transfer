@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fyne.io/fyne/v2/widget"
 	"strconv"
 	"strings"
 )
@@ -12,6 +13,31 @@ const (
 	Running State = iota
 	Stopped
 )
+
+func NewProgressBarHook(progressBar *widget.ProgressBar, target int64) *ProgressBarHook {
+	return &ProgressBarHook{
+		progressBar: progressBar,
+		target:      target,
+		now:         0,
+	}
+}
+
+type ProgressBarHook struct {
+	progressBar *widget.ProgressBar
+	target      int64
+	now         int64
+}
+
+func (r *ProgressBarHook) Write(p []byte) (n int, err error) {
+	r.now += int64(len(p))
+	r.updateProgressBar()
+	return len(p), nil
+}
+func (r *ProgressBarHook) updateProgressBar() {
+	if r.now <= r.target {
+		r.progressBar.SetValue(float64(r.now) / float64(r.target))
+	}
+}
 
 // ReplaceLastOctet 替换ip后缀
 func ReplaceLastOctet(ip, lastOctet string) string {
