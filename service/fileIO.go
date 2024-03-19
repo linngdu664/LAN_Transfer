@@ -55,7 +55,7 @@ func SendFile(src string, writer io.Writer) error {
 	//计算并发送文件内容与文件md5
 	buf := bufGet(stat.Size())
 	hash := md5.New()
-	hook := NewProgressBarHook(SenderProgressBar, stat.Size())
+	hook := NewProgressBarHook(SenderProgressBar, SenderSpeedText, stat.Size())
 	multiWriter := io.MultiWriter(writer, hash, hook)
 	if _, err = io.CopyBuffer(multiWriter, file, buf); err != nil {
 		return errors.New("Error sending file:" + err.Error())
@@ -65,9 +65,11 @@ func SendFile(src string, writer io.Writer) error {
 		return errors.New("Error sending md5:" + err.Error())
 	}
 	Log("Send file:" + string(fileNameBytes) + " size:" + strconv.FormatInt(stat.Size(), 10) + " totalTime:" + strconv.FormatFloat(float64(time.Now().Sub(startTime).Milliseconds()), 'f', -1, 64) + "ms md5:" + hex.EncodeToString(fileMD5))
+	buf = nil
+	hook.Close()
 	return nil
 }
-func ReceiveFile(src string, reader io.Reader) error {
+func ReceiveFile(src string, reader io.Reader, pbHook *MultipleProgressBarHook) error {
 	startTime := time.Now()
 	var err error
 	//读取文件名大小
@@ -96,12 +98,13 @@ func ReceiveFile(src string, reader io.Reader) error {
 		return errors.Join(errors.New("error creating file"), err)
 	}
 	defer newFile.Close()
-	hook := NewProgressBarHook(ReceiverProgressBar, num)
-	multiWriter := io.MultiWriter(newFile, hash, hook)
+	pbHook.AddPB(num)
+	multiWriter := io.MultiWriter(newFile, hash, pbHook)
 	if _, err = CopyNBuffer(multiWriter, reader, num, buf); err != nil {
 		errF := os.Remove(fPath)
 		return errors.Join(errors.New("error reading file"), errF, err)
 	}
+	pbHook.RemovePb(num)
 	//读取并比较md5
 	hashSum := hash.Sum(nil)
 	fileMD5 := make([]byte, 16)
@@ -114,6 +117,7 @@ func ReceiveFile(src string, reader io.Reader) error {
 		return errors.Join(errors.New("error equal file md5"), errF)
 	}
 	Log("Received file:" + string(fileName) + " size:" + strconv.FormatInt(num, 10) + " totalTime:" + strconv.FormatFloat(float64(time.Now().Sub(startTime).Milliseconds()), 'f', -1, 64) + "ms md5:" + hex.EncodeToString(fileMD5))
+	buf = nil
 	return nil
 }
 

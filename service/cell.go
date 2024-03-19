@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"image/color"
 	"time"
 )
 
@@ -36,6 +38,8 @@ var (
 
 	SenderProgressBar   *widget.ProgressBar
 	ReceiverProgressBar *widget.ProgressBar
+	SenderSpeedText     *canvas.Text
+	ReceiverSpeedText   *canvas.Text
 
 	Logger    *widget.Label
 	LogScroll *container.Scroll
@@ -95,14 +99,18 @@ func InitWidget() {
 			LogErr("Sender dialog error" + err.Error())
 			return
 		}
-		SenderFileSrcInput.SetText(closer.URI().Path())
+		if closer != nil {
+			SenderFileSrcInput.SetText(closer.URI().Path())
+		}
 	}, MainWindow)
 	ReceiverFileDialog = dialog.NewFolderOpen(func(uri fyne.ListableURI, err error) {
 		if err != nil {
 			LogErr("Receiver dialog error" + err.Error())
 			return
 		}
-		ReceiverFileSrcInput.SetText(uri.Path())
+		if uri != nil {
+			ReceiverFileSrcInput.SetText(uri.Path())
+		}
 	}, MainWindow)
 
 	SenderFileSelectBtn = widget.NewButton("Browser", func() {
@@ -131,6 +139,8 @@ func InitWidget() {
 
 	SenderProgressBar = widget.NewProgressBar()
 	ReceiverProgressBar = widget.NewProgressBar()
+	SenderSpeedText = canvas.NewText("  0.0B/s t:0s", color.Black)
+	ReceiverSpeedText = canvas.NewText("  0.0B/s t:0s", color.Black)
 
 	Tabs = container.NewAppTabs(
 		container.NewTabItem("Sender",
@@ -149,7 +159,7 @@ func InitWidget() {
 						SearchIpBtn,
 						SendFileBtn,
 					),
-					SenderProgressBar,
+					container.NewStack(SenderProgressBar, SenderSpeedText),
 				),
 			),
 		),
@@ -166,7 +176,7 @@ func InitWidget() {
 					),
 					ReceiverFileSrcInput,
 					ReceiverSwitch,
-					ReceiverProgressBar,
+					container.NewStack(ReceiverProgressBar, ReceiverSpeedText),
 				),
 			),
 		),

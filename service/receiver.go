@@ -256,14 +256,14 @@ func (r *ReceiveHandler) RunReceiveFile() {
 		LogErr("runReceiveFile Listen fail:" + err.Error())
 		return
 	}
-
 	go func() {
 		defer listener.Close()
+		pbHook := NewMultipleProgressBarHook(ReceiverProgressBar, ReceiverSpeedText)
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				logCloseOrErr(err, "runReceiveFile Accept stop:")
-				return
+				break
 			}
 			Log("Start receiving files from:" + conn.RemoteAddr().String())
 			go func(conn net.Conn) {
@@ -274,12 +274,13 @@ func (r *ReceiveHandler) RunReceiveFile() {
 				//	logCloseOrErr(err2, "set time deadline error:")
 				//}
 
-				err2 := ReceiveFile(r.fileSrc, conn)
+				err2 := ReceiveFile(r.fileSrc, conn, pbHook)
 				if err2 != nil {
 					logCloseOrErr(err2, "receive file err:")
 				}
 
 			}(conn)
 		}
+		pbHook.Close()
 	}()
 }
