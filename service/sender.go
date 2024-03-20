@@ -19,9 +19,12 @@ type SendHandler struct {
 	fileSrc string
 }
 
+var SListItemEnable = true
+
 var Sender = SendHandler{}
 
 var connR net.PacketConn
+var connSendFile net.Conn
 
 // InitSetting 初始化设置
 func (r *SendHandler) InitSetting() {
@@ -120,29 +123,62 @@ func (r *SendHandler) RunIpReceiver() {
 	}()
 }
 func (r *SendHandler) SendFile() {
-	Log("Start sending files...")
-	//检查ip
-	err := IpCheck(SIpInput.Text)
+	go func() {
+		SIpInput.Disable()
+		SenderPortInput.Disable()
+		SenderFileSelectBtn.Disable()
+		SenderFileSrcInput.Disable()
+		SendFileBtn.Disable()
+		SListItemEnable = false
+		defer func() {
+			SIpInput.Enable()
+			SenderPortInput.Enable()
+			SenderFileSelectBtn.Enable()
+			SenderFileSrcInput.Enable()
+			SendFileBtn.Enable()
+			SListItemEnable = true
+		}()
+		Log("Start sending files...")
+		//检查ip
+		err := IpCheck(SIpInput.Text)
+		if err != nil {
+			LogErr("IP is illegal:" + err.Error())
+			return
+		}
+		//检查文件
+		err = r.SetFileSrc(SenderFileSrcInput.Text)
+		if err != nil {
+			LogErr("Wrong file path:" + err.Error())
+			return
+		}
+		//监听端口
+		connSendFile, err = net.Dial("tcp", SIpInput.Text+":"+r.PortS(0))
+		if err != nil {
+			LogErr("Link error with " + SIpInput.Text + ":" + r.PortS(0) + err.Error())
+			return
+		}
+		defer connSendFile.Close()
+		err = SendFile(r.fileSrc, connSendFile)
+		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				Log("Send File Stopped")
+			} else {
+				LogErr(err.Error())
+			}
+		}
+	}()
+}
+func (r *SendHandler) StopSendFile() {
+	conn, err := net.Dial("udp", SIpInput.Text+":"+r.PortS(2))
 	if err != nil {
-		LogErr("IP is illegal:" + err.Error())
+		LogErr("Link error with " + SIpInput.Text + ":" + r.PortS(2) + err.Error())
 		return
 	}
-	//检查文件
-	err = r.SetFileSrc(SenderFileSrcInput.Text)
+	_, err = conn.Write([]byte{'1'})
 	if err != nil {
-		LogErr("Wrong file path:" + err.Error())
+		LogErr("Link write with " + SIpInput.Text + ":" + r.PortS(2) + err.Error())
 		return
 	}
-	//监听端口
-	conn, err := net.Dial("tcp", SIpInput.Text+":"+r.PortS(0))
-	if err != nil {
-		LogErr("Link error with " + SIpInput.Text + ":" + r.PortS(0) + err.Error())
-		return
-	}
-	defer conn.Close()
-	err = SendFile(r.fileSrc, conn)
-	if err != nil {
-		LogErr(err.Error())
-		return
-	}
+	connSendFile.Close()
+	Log("Stop Send File")
 }

@@ -106,10 +106,9 @@ func NewMultipleProgressBarHook(progressBar *widget.ProgressBar, speedText *canv
 }
 func (r *MultipleProgressBarHook) AddPB(num int64) {
 	r.target += num
-	fmt.Println(r.target)
 }
-func (r *MultipleProgressBarHook) RemovePb(num int64) {
-	r.now -= num
+func (r *MultipleProgressBarHook) RemovePb(nowN, num int64) {
+	r.now -= nowN
 	r.target -= num
 }
 

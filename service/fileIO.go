@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -58,7 +59,12 @@ func SendFile(src string, writer io.Writer) error {
 	hook := NewProgressBarHook(SenderProgressBar, SenderSpeedText, stat.Size())
 	multiWriter := io.MultiWriter(writer, hash, hook)
 	if _, err = io.CopyBuffer(multiWriter, file, buf); err != nil {
-		return errors.New("Error sending file:" + err.Error())
+		hook.Close()
+		if errors.Is(err, net.ErrClosed) {
+			return err
+		} else {
+			return errors.New("Error sending file:" + err.Error())
+		}
 	}
 	fileMD5 := hash.Sum(nil)
 	if _, err = writer.Write(fileMD5); err != nil {
@@ -100,19 +106,23 @@ func ReceiveFile(src string, reader io.Reader, pbHook *MultipleProgressBarHook) 
 	defer newFile.Close()
 	pbHook.AddPB(num)
 	multiWriter := io.MultiWriter(newFile, hash, pbHook)
-	if _, err = CopyNBuffer(multiWriter, reader, num, buf); err != nil {
+	if n, err := CopyNBuffer(multiWriter, reader, num, buf); err != nil {
+		pbHook.RemovePb(n, num)
+		newFile.Close()
 		errF := os.Remove(fPath)
 		return errors.Join(errors.New("error reading file"), errF, err)
 	}
-	pbHook.RemovePb(num)
+	pbHook.RemovePb(num, num)
 	//读取并比较md5
 	hashSum := hash.Sum(nil)
 	fileMD5 := make([]byte, 16)
 	if _, err = reader.Read(fileMD5); err != nil {
+		newFile.Close()
 		errF := os.Remove(fPath)
 		return errors.Join(errors.New("error reading file md5"), errF, err)
 	}
 	if !bytes.Equal(fileMD5, hashSum) {
+		newFile.Close()
 		errF := os.Remove(fPath)
 		return errors.Join(errors.New("error equal file md5"), errF)
 	}

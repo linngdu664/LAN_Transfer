@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
+	"sync"
 	"time"
 )
 
@@ -31,7 +32,7 @@ var (
 	SListItems []string
 
 	SenderFileSelectBtn   *widget.Button
-	SearchIpBtn           *widget.Button
+	StopSendFileBtn       *widget.Button
 	SendFileBtn           *widget.Button
 	ReceiverFileSelectBtn *widget.Button
 	ReceiverSwitch        *widget.RadioGroup
@@ -76,7 +77,9 @@ func InitWidget() {
 		func() fyne.CanvasObject {
 			button := widget.NewButton("", nil)
 			button.OnTapped = func() {
-				RIpInput.SetText(button.Text)
+				if RListItemEnable {
+					RIpInput.SetText(button.Text)
+				}
 			}
 			return button
 		},
@@ -87,7 +90,9 @@ func InitWidget() {
 		func() fyne.CanvasObject {
 			button := widget.NewButton("", nil)
 			button.OnTapped = func() {
-				SIpInput.SetText(button.Text)
+				if SListItemEnable {
+					SIpInput.SetText(button.Text)
+				}
 			}
 			return button
 		},
@@ -116,7 +121,9 @@ func InitWidget() {
 	SenderFileSelectBtn = widget.NewButton("Browser", func() {
 		SenderFileDialog.Show()
 	})
-	SearchIpBtn = widget.NewButton("Search IP", nil)
+	StopSendFileBtn = widget.NewButton("Stop Send File", func() {
+		Sender.StopSendFile()
+	})
 	SendFileBtn = widget.NewButton("Send File", func() {
 		Sender.SendFile()
 	})
@@ -156,7 +163,7 @@ func InitWidget() {
 					),
 					SenderFileSrcInput,
 					container.NewGridWithColumns(2,
-						SearchIpBtn,
+						StopSendFileBtn,
 						SendFileBtn,
 					),
 					container.NewStack(SenderProgressBar, SenderSpeedText),
@@ -236,4 +243,27 @@ func LogErr(msg string) {
 	fmt.Print(formatMsg)
 	Logger.SetText(Logger.Text + formatMsg)
 	LogScroll.ScrollToBottom()
+}
+
+type SyncMap[K comparable, V any] struct {
+	m sync.Map
+}
+
+func (s *SyncMap[K, V]) Store(key K, value V) {
+	s.m.Store(key, value)
+}
+func (s *SyncMap[K, V]) Load(key K) (value V, ok bool) {
+	val, ok := s.m.Load(key)
+	if ok {
+		value = val.(V)
+	}
+	return value, ok
+}
+func (s *SyncMap[K, V]) Delete(key K) {
+	s.m.Delete(key)
+}
+func (s *SyncMap[K, V]) Range(f func(key K, value V) bool) {
+	s.m.Range(func(key, value any) bool {
+		return f(key.(K), value.(V))
+	})
 }

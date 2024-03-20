@@ -23,6 +23,9 @@ type ReceiveHandler struct {
 	fileSrc string
 }
 
+var connStopSignal net.PacketConn
+var ReceivingConnMap = SyncMap[string, *net.Conn]{}
+var RListItemEnable = true
 var Receiver = ReceiveHandler{}
 
 var listener net.Listener
@@ -73,10 +76,12 @@ func (r *ReceiveHandler) Run() error {
 
 	r.StartBroadcastIp()
 	r.RunReceiveFile()
+	r.RunReceiverStopSignal()
 	ReceiverPortInput.Disable()
 	ReceiverFileSrcInput.Disable()
 	RIpInput.Disable()
 	ReceiverFileSelectBtn.Disable()
+	RListItemEnable = false
 	r.state = Running
 	Log("Run Receiver Succeed")
 	return nil
@@ -91,13 +96,22 @@ func (r *ReceiveHandler) Stop() {
 	}
 	Log("Stop Receiver")
 	stopBroadcastIp <- struct{}{}
+	ReceivingConnMap.Range(func(key string, value *net.Conn) bool {
+		defer ReceivingConnMap.Delete(key)
+		if (*value) != nil {
+			(*value).Close()
+		}
+		return true
+	})
 	if listener != nil {
 		listener.Close()
 	}
+	r.StopReceiverStopSignal()
 	ReceiverPortInput.Enable()
 	ReceiverFileSrcInput.Enable()
 	RIpInput.Enable()
 	ReceiverFileSelectBtn.Enable()
+	RListItemEnable = true
 	r.state = Stopped
 	Log("Stop Receiver Succeed")
 }
@@ -239,13 +253,51 @@ func (r *ReceiveHandler) StartBroadcastIp() {
 		}
 	}()
 }
+func (r *ReceiveHandler) RunReceiverStopSignal() {
+	var err error
+	connStopSignal, err = net.ListenPacket("udp", ":"+r.PortS(2))
+	if err != nil {
+		LogErr("Link error with port: " + r.PortS(1))
+		return
+	}
+	go func() {
+		for {
+			_, addr, err := connStopSignal.ReadFrom(make([]byte, 1))
+			if err != nil {
+				if errors.Is(err, net.ErrClosed) {
+					Log("connStopSignal closed")
+				} else {
+					LogErr("connStopSignal ReadFrom Error: " + err.Error())
+				}
+				return
+			}
+			ip, err := ExtractIPPartOfAddress(addr.String())
+			if err != nil {
+				LogErr("ExtractIPPartOfAddress Error:" + err.Error())
+				return
+			}
+			Log("Stop receiving file with ip:" + ip)
+			if value, ok := ReceivingConnMap.Load(ip); ok {
+				if (*value) != nil {
+					(*value).Close()
+				}
+				ReceivingConnMap.Delete(ip)
+			}
+		}
+	}()
+}
+func (r *ReceiveHandler) StopReceiverStopSignal() {
+	if connStopSignal != nil {
+		connStopSignal.Close()
+	}
+}
 
 // RunReceiveFile 启动等待接收文件
 func (r *ReceiveHandler) RunReceiveFile() {
 	Log("Start listening to receive files...")
 	logCloseOrErr := func(err error, errMsg string) {
 		if errors.Is(err, net.ErrClosed) {
-			Log(errMsg + " runReceiveFile Accept closed")
+			Log(errMsg + " runReceiveFile Accept closed:" + err.Error())
 		} else {
 			LogErr(errMsg + err.Error())
 		}
@@ -267,7 +319,10 @@ func (r *ReceiveHandler) RunReceiveFile() {
 			}
 			Log("Start receiving files from:" + conn.RemoteAddr().String())
 			go func(conn net.Conn) {
+				address, _ := ExtractIPPartOfAddress(conn.RemoteAddr().String())
+				ReceivingConnMap.Store(address, &conn)
 				defer conn.Close()
+				defer ReceivingConnMap.Delete(address)
 				//设置超时时间
 				//err2 := conn.SetReadDeadline(time.Now().Add(time.Second))
 				//if err2 != nil {
@@ -276,9 +331,8 @@ func (r *ReceiveHandler) RunReceiveFile() {
 
 				err2 := ReceiveFile(r.fileSrc, conn, pbHook)
 				if err2 != nil {
-					logCloseOrErr(err2, "receive file err:")
+					logCloseOrErr(err2, "receive file ended:")
 				}
-
 			}(conn)
 		}
 		pbHook.Close()
