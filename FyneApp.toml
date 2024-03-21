@@ -1,0 +1,6 @@
+[Details]
+  Icon = "LAN_Transfer.png"
+  Name = "LAN Transfer"
+  ID = "com.linngdu664.lan_transfer"
+  Version = "0.5.0"
+  Build = 2

@@ -51,7 +51,7 @@ var (
 
 func InitWidget() {
 	MainApp = app.New()
-	MainWindow = MainApp.NewWindow("main")
+	MainWindow = MainApp.NewWindow("LAN Transfer")
 	MainWindow.Resize(fyne.Size{
 		Width:  500,
 		Height: 300,

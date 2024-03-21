@@ -33,6 +33,7 @@ func (r *SendHandler) InitSetting() {
 	//设置默认接收端口
 	r.port = 32000
 	SenderPortInput.SetText(strconv.Itoa(int(r.port)))
+	StopSendFileBtn.Disable()
 	Log("Init Sender Succeed")
 }
 
@@ -129,6 +130,7 @@ func (r *SendHandler) SendFile() {
 		SenderFileSelectBtn.Disable()
 		SenderFileSrcInput.Disable()
 		SendFileBtn.Disable()
+		StopSendFileBtn.Enable()
 		SListItemEnable = false
 		defer func() {
 			SIpInput.Enable()
@@ -136,6 +138,7 @@ func (r *SendHandler) SendFile() {
 			SenderFileSelectBtn.Enable()
 			SenderFileSrcInput.Enable()
 			SendFileBtn.Enable()
+			StopSendFileBtn.Disable()
 			SListItemEnable = true
 		}()
 		Log("Start sending files...")
@@ -179,6 +182,8 @@ func (r *SendHandler) StopSendFile() {
 		LogErr("Link write with " + SIpInput.Text + ":" + r.PortS(2) + err.Error())
 		return
 	}
-	connSendFile.Close()
+	if connSendFile != nil {
+		connSendFile.Close()
+	}
 	Log("Stop Send File")
 }
